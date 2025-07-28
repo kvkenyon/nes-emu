@@ -96,6 +96,7 @@ impl<M: Memory> CPU<M> {
     }
 
     fn cross_page_boundary_cycle_penalty(base_addr: u16, effective_addr: u16) -> u64 {
+        // if the upper bytes are different there's a page cross
         if (base_addr & 0xFF00) != (effective_addr & 0xFF00) {
             1
         } else {
@@ -131,6 +132,49 @@ impl<M: Memory> CPU<M> {
             self.bus.read(base_addr.wrapping_add(1))
         };
         self.pc = Self::get_address(lsb, msb);
+    }
+
+    fn addr_zero_page(&mut self) -> u16 {
+        let lsb = self.bus.read(self.pc);
+        self.inc_pc();
+        Self::get_address(lsb, 0x00)
+    }
+
+    fn addr_zero_page_x(&mut self) -> u16 {
+        let lsb = self.bus.read(self.pc);
+        self.inc_pc();
+
+        lsb.wrapping_add(self.x) as u16
+    }
+
+    fn addr_zero_page_y(&mut self) -> u16 {
+        let lsb = self.bus.read(self.pc);
+        self.inc_pc();
+
+        lsb.wrapping_add(self.y) as u16
+    }
+
+    fn addr_zero_page_x_indirect(&mut self) -> u16 {
+        let base_addr = self.bus.read(self.pc);
+        self.inc_pc();
+
+        let base_addr = base_addr.wrapping_add(self.x) as u16;
+
+        let lsb = self.bus.read(base_addr);
+        let msb = self.bus.read(base_addr.wrapping_add(1));
+
+        Self::get_address(lsb, msb)
+    }
+
+    fn addr_zero_page_y_indirect(&mut self) -> u16 {
+        let base_addr = self.bus.read(self.pc);
+        self.inc_pc();
+
+        let lsb = base_addr.wrapping_add(self.y);
+
+        let msb = self.bus.read(base_addr.wrapping_add(1) as u16);
+
+        Self::get_address(lsb, msb)
     }
 
     pub fn step(&mut self) -> u8 {
@@ -309,5 +353,80 @@ mod tests {
 
         cpu.addr_absolute_indirect();
         assert_eq!(cpu.pc, 0x2321);
+    }
+
+    #[test]
+    fn test_addr_zero_page() {
+        let mut cpu = setup_cpu();
+        cpu.pc = 0x1000;
+
+        // Get LSB
+        cpu.bus.write(0x1000, 0x23);
+
+        let addr = cpu.addr_zero_page();
+
+        assert_eq!(addr, 0x0023);
+    }
+
+    #[test]
+    fn test_addr_zero_page_x() {
+        let mut cpu = setup_cpu();
+        cpu.pc = 0x1000;
+
+        cpu.bus.write(0x1000, 0xFD);
+        cpu.x = 0x04;
+
+        let addr = cpu.addr_zero_page_x();
+
+        assert_eq!(addr, 0x0001);
+    }
+
+    #[test]
+    fn test_addr_zero_page_y() {
+        let mut cpu = setup_cpu();
+        cpu.pc = 0x1000;
+
+        cpu.bus.write(0x1000, 0xFD);
+        cpu.y = 0x04;
+
+        let addr = cpu.addr_zero_page_y();
+
+        assert_eq!(addr, 0x0001);
+    }
+
+    #[test]
+    fn test_addr_zero_page_x_indirect() {
+        let mut cpu = setup_cpu();
+        cpu.pc = 0x1000;
+
+        cpu.x = 0x02;
+        cpu.bus.write(0x1000, 0xFC);
+
+        // Memory location 1 in page zero
+        cpu.bus.write(0x00FE, 0x34);
+        // Memory location 2 in page zero
+        cpu.bus.write(0x00FF, 0x12);
+
+        let addr = cpu.addr_zero_page_x_indirect();
+
+        assert_eq!(addr, 0x1234);
+    }
+
+    #[test]
+    fn test_addr_zero_page_y_indirect() {
+        let mut cpu = setup_cpu();
+        cpu.pc = 0x1000;
+
+        cpu.y = 0x02;
+        cpu.bus.write(0x1000, 0xFC);
+
+        // Memory location 1 in page zero
+        cpu.bus.write(0x00FE, 0x34);
+        // Memory location 2 in page zero
+        cpu.bus.write(0x00FF, 0x12);
+
+        let addr = cpu.addr_zero_page_y_indirect();
+
+        assert_eq!(addr, 0x1234);
     }
 }
