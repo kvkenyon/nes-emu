@@ -170,9 +170,21 @@ impl<M: Memory> CPU<M> {
         let base_addr = self.bus.read(self.pc);
         self.inc_pc();
 
-        let lsb = base_addr.wrapping_add(self.y);
+        let lsb = self.bus.read(base_addr as u16);
 
-        let msb = self.bus.read(base_addr.wrapping_add(1) as u16);
+        let (_, overflow) = self.y.overflowing_add(lsb);
+
+        let lsb = self.y.wrapping_add(lsb);
+
+        let next_addr = base_addr.wrapping_add(0x1);
+
+        let msb = self.bus.read(next_addr as u16);
+
+        let msb = if overflow == true {
+            msb.wrapping_add(1)
+        } else {
+            msb
+        };
 
         Self::get_address(lsb, msb)
     }
@@ -415,18 +427,15 @@ mod tests {
     #[test]
     fn test_addr_zero_page_y_indirect() {
         let mut cpu = setup_cpu();
-        cpu.pc = 0x1000;
+        cpu.pc = 0x0001;
 
-        cpu.y = 0x02;
-        cpu.bus.write(0x1000, 0xFC);
-
-        // Memory location 1 in page zero
-        cpu.bus.write(0x00FE, 0x34);
-        // Memory location 2 in page zero
-        cpu.bus.write(0x00FF, 0x12);
+        cpu.y = 0x01;
+        cpu.bus.write(0x0001, 0xAB);
+        cpu.bus.write(0x00AB, 0xFF);
+        cpu.bus.write(0x00AC, 0x02);
 
         let addr = cpu.addr_zero_page_y_indirect();
 
-        assert_eq!(addr, 0x1234);
+        assert_eq!(addr, 0x0300);
     }
 }
