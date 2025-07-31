@@ -166,27 +166,44 @@ impl<M: Memory> CPU<M> {
         Self::get_address(lsb, msb)
     }
 
-    fn addr_zero_page_y_indirect(&mut self) -> u16 {
-        let base_addr = self.bus.read(self.pc);
+    fn addr_zero_page_y_indirect(&mut self) -> (u16, u64) {
+        let zp_addr = self.bus.read(self.pc) as u16;
         self.inc_pc();
 
-        let lsb = self.bus.read(base_addr as u16);
+        let lsb = self.bus.read(zp_addr as u16);
+        let msb = self.bus.read(zp_addr.wrapping_add(1u16));
 
-        let (_, overflow) = self.y.overflowing_add(lsb);
+        let base_addr = Self::get_address(lsb, msb);
 
-        let lsb = self.y.wrapping_add(lsb);
+        let (new_lsb, overflow) = self.y.overflowing_add(lsb);
+        let new_msb = msb.wrapping_add(if overflow == true { 1 } else { 0 });
 
-        let next_addr = base_addr.wrapping_add(0x1);
+        let effective_addr = u16::from_le_bytes([new_lsb, new_msb]);
 
-        let msb = self.bus.read(next_addr as u16);
+        let page_crossed = Self::cross_page_boundary_cycle_penalty(base_addr, effective_addr);
 
-        let msb = if overflow == true {
-            msb.wrapping_add(1)
+        (effective_addr, page_crossed)
+    }
+
+    fn addr_relative(&mut self) -> (u16, u64) {
+        let offset: i8 = self.bus.read(self.pc) as i8;
+        let base_addr = self.pc;
+
+        println!("Offset: {offset}");
+
+        let effective_addr = if offset < 0 {
+            println!("offset as u16: {}", offset as u16);
+            base_addr.wrapping_sub(offset as u16) as u16
         } else {
-            msb
+            println!("offset as u16: {}", offset as u16);
+            base_addr.wrapping_add(offset as u16) as u16
         };
 
-        Self::get_address(lsb, msb)
+        let page_crossed = Self::cross_page_boundary_cycle_penalty(base_addr, effective_addr);
+
+        self.pc = effective_addr;
+
+        (effective_addr, page_crossed)
     }
 
     pub fn step(&mut self) -> u8 {
@@ -434,8 +451,18 @@ mod tests {
         cpu.bus.write(0x00AB, 0xFF);
         cpu.bus.write(0x00AC, 0x02);
 
-        let addr = cpu.addr_zero_page_y_indirect();
+        let (addr, cycles) = cpu.addr_zero_page_y_indirect();
 
         assert_eq!(addr, 0x0300);
+        assert_eq!(cycles, 1);
+    }
+
+    #[test]
+    fn test_addr_relative_negative_offset() {
+        let mut cpu = setup_cpu();
+        cpu.pc = 0x0001;
+
+        let offset: i8 = -127;
+        cpu.bus.write(0x1000, offset as u8);
     }
 }
