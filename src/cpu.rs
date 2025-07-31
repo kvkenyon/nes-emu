@@ -187,18 +187,13 @@ impl<M: Memory> CPU<M> {
 
     fn addr_relative(&mut self) -> (u16, u64) {
         let offset: i8 = self.bus.read(self.pc) as i8;
-        let base_addr = self.pc;
+        self.inc_pc();
 
         println!("Offset: {offset}");
 
-        let effective_addr = if offset < 0 {
-            println!("offset as u16: {}", offset as u16);
-            base_addr.wrapping_sub(offset as u16) as u16
-        } else {
-            println!("offset as u16: {}", offset as u16);
-            base_addr.wrapping_add(offset as u16) as u16
-        };
+        let base_addr = self.pc;
 
+        let effective_addr = base_addr.wrapping_add_signed(offset as i16);
         let page_crossed = Self::cross_page_boundary_cycle_penalty(base_addr, effective_addr);
 
         self.pc = effective_addr;
@@ -458,11 +453,30 @@ mod tests {
     }
 
     #[test]
+    fn test_addr_relative_positive_offset() {
+        let mut cpu = setup_cpu();
+        cpu.pc = 0x1000;
+
+        let offset: i8 = 0x0A;
+        cpu.bus.write(0x1000, offset as u8);
+
+        let (effective_addr, cycles) = cpu.addr_relative();
+        assert_eq!(effective_addr, cpu.pc);
+        assert_eq!(cycles, 0);
+        assert_eq!(cpu.pc, 0x100B);
+    }
+
+    #[test]
     fn test_addr_relative_negative_offset() {
         let mut cpu = setup_cpu();
-        cpu.pc = 0x0001;
+        cpu.pc = 0x1000;
 
-        let offset: i8 = -127;
+        let offset: i8 = -15;
         cpu.bus.write(0x1000, offset as u8);
+
+        let (effective_addr, cycles) = cpu.addr_relative();
+        assert_eq!(effective_addr, cpu.pc);
+        assert_eq!(cycles, 1);
+        assert_eq!(cpu.pc, 0xFF2);
     }
 }
