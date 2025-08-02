@@ -91,8 +91,7 @@ impl<M: Memory> CPU<M> {
         self.inc_pc();
         let msb = self.bus.read(self.pc);
         self.inc_pc();
-        let address: u16 = Self::get_address(lsb, msb);
-        address
+        Self::get_address(lsb, msb)
     }
 
     fn cross_page_boundary_cycle_penalty(base_addr: u16, effective_addr: u16) -> u64 {
@@ -201,29 +200,77 @@ impl<M: Memory> CPU<M> {
         (effective_addr, page_crossed)
     }
 
-    pub fn step(&mut self) -> u8 {
+    pub fn step(&mut self) -> u64 {
         let opcode = self.bus.read(self.pc);
         self.inc_pc();
-        let mut cycles = 0u8;
+        let mut cycles = 0;
 
         match opcode {
             0xA9 => {
                 // LDA #$nn (LDA Immediate)
                 let value = self.bus.read(self.pc);
                 self.inc_pc();
+                cycles = 2;
                 self.ac = value;
                 self.set_zero_and_negative_flag(self.ac);
-                cycles = 2;
             }
             0xAD => {
                 // LDA #&nnnn (LDA Absolute addressing)
                 let address: u16 = self.addr_absolute();
                 let value = self.bus.read(address);
+                cycles = 4;
                 self.ac = value;
                 self.set_zero_and_negative_flag(value);
+            }
+            0xBD => {
+                // LDA $nnnn,X
+                // absolute x
+                let (address, p) = self.addr_absolute_x();
+                cycles += 4 + p;
+                let value = self.bus.read(address);
+                self.ac = value;
+                self.set_zero_and_negative_flag(value);
+            }
+            0xB9 => {
+                // absolute y
+                let (address, p) = self.addr_absolute_y();
+                cycles += 4 + p;
+                let value = self.bus.read(address);
+                self.ac = value;
+                self.set_zero_and_negative_flag(value);
+            }
+            0xA5 => {
+                // zero-page
+                let address = self.addr_zero_page();
+                cycles = 3;
+                let value = self.bus.read(address);
+                self.ac = value;
+                self.set_zero_and_negative_flag(value);
+            }
+            0xB5 => {
+                // x-indexed zero page
+                let address = self.addr_zero_page_x();
                 cycles = 4;
+                let value = self.bus.read(address);
+                self.ac = value;
+                self.set_zero_and_negative_flag(value);
             }
 
+            0xA1 => {
+                // x-indexed zero page indirect
+                self.addr_zero_page_x_indirect();
+                cycles = 6;
+                let value = self.bus.read(self.pc);
+                self.inc_pc();
+                self.ac = value;
+                self.set_zero_and_negative_flag(value);
+            }
+            0xB1 => {
+                let (address, p) = self.addr_zero_page_y_indirect();
+                cycles = 5 + p;
+                self.ac = self.bus.read(address);
+                self.set_zero_and_negative_flag(self.ac);
+            }
             other => panic!("Invalid opcode: {other}"),
         }
 
