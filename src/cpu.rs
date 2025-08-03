@@ -271,6 +271,89 @@ impl<M: Memory> CPU<M> {
                 self.ac = self.bus.read(address);
                 self.set_zero_and_negative_flag(self.ac);
             }
+            // LDX
+            0xA2 => {
+                // immediate
+                let value = self.bus.read(self.pc);
+                self.inc_pc();
+                cycles = 2;
+                self.x = value;
+                self.set_zero_and_negative_flag(self.x);
+            }
+            0xAE => {
+                // absolute
+                let address: u16 = self.addr_absolute();
+                let value = self.bus.read(address);
+                cycles = 4;
+                self.x = value;
+                self.set_zero_and_negative_flag(value);
+            }
+            0xBE => {
+                // absolute indexed y
+                let (address, p) = self.addr_absolute_y();
+                cycles += 4 + p;
+                let value = self.bus.read(address);
+                self.x = value;
+                self.set_zero_and_negative_flag(value);
+            }
+            0xA6 => {
+                // zero page
+                let address = self.addr_zero_page();
+                cycles = 3;
+                let value = self.bus.read(address);
+                self.x = value;
+                self.set_zero_and_negative_flag(value);
+            }
+            0xB6 => {
+                // zero page indexed y
+                let address = self.addr_zero_page_y();
+                cycles = 4;
+                let value = self.bus.read(address);
+                self.x = value;
+                self.set_zero_and_negative_flag(value);
+            }
+            // LDY (M -> Y)
+            0xA0 => {
+                // immediate
+                let value = self.bus.read(self.pc);
+                self.inc_pc();
+                cycles = 2;
+                self.y = value;
+                self.set_zero_and_negative_flag(self.y);
+            }
+            0xAC => {
+                // absolute
+                let address: u16 = self.addr_absolute();
+                let value = self.bus.read(address);
+                cycles = 4;
+                self.y = value;
+                self.set_zero_and_negative_flag(value);
+            }
+            0xBC => {
+                // absolute indexed y
+                let (address, p) = self.addr_absolute_x();
+                cycles += 4 + p;
+                let value = self.bus.read(address);
+                self.y = value;
+                self.set_zero_and_negative_flag(value);
+            }
+            0xA4 => {
+                // zero page
+                let address = self.addr_zero_page();
+                cycles = 3;
+                let value = self.bus.read(address);
+                self.y = value;
+                self.set_zero_and_negative_flag(value);
+            }
+            0xB4 => {
+                // x indexed zero page
+                let address = self.addr_zero_page_x();
+                cycles = 4;
+                let value = self.bus.read(address);
+                self.y = value;
+                self.set_zero_and_negative_flag(value);
+            }
+
             other => panic!("Invalid opcode: {other}"),
         }
 
