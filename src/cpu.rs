@@ -421,6 +421,31 @@ impl<M: Memory> CPU<M> {
                 cycles = 4;
                 self.bus.write(address, self.y);
             } // x-indexed zero page
+            // TAX: A -> X
+            0xAA => {
+                self.x = self.ac;
+                self.set_zero_and_negative_flag(self.x);
+            }
+            // TAY: A -> Y
+            0xA8 => {
+                self.y = self.ac;
+                self.set_zero_and_negative_flag(self.y);
+            }
+            // TSX: S -> X
+            0xBA => {
+                self.x = self.sp;
+                self.set_zero_and_negative_flag(self.x);
+            }
+            // TXA: X -> A
+            0x8A => {
+                self.ac = self.x;
+                self.set_zero_and_negative_flag((self.ac));
+            }
+            // TXS: X -> S
+            0x9A => {
+                self.sp = self.x;
+            }
+
             other => panic!("Invalid opcode: {other}"),
         }
 
