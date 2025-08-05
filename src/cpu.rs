@@ -55,7 +55,7 @@ impl<M: Memory> CPU<M> {
     pub fn new(bus: M) -> Self {
         CPU {
             pc: 0u16,
-            sp: 0xFD,
+            sp: 0xFF,
             stack: [0; 255],
             ac: 0u8,
             x: 0u8,
@@ -84,6 +84,21 @@ impl<M: Memory> CPU<M> {
 
     fn get_address(lsb: u8, msb: u8) -> u16 {
         ((msb as u16) << 8) | lsb as u16
+    }
+
+    fn peek_stack(&self) -> u8 {
+        self.bus.read(self.sp as u16 + 0x0100u16)
+    }
+
+    fn push_stack(&mut self, value: u8) {
+        self.bus.write(self.sp as u16 + 0x0100u16, value);
+        self.sp -= 1;
+    }
+
+    fn pull_stack(&mut self) -> u8 {
+        self.sp += 1;
+        let val = self.bus.read(self.sp as u16 + 0x0100u16);
+        val
     }
 
     fn addr_absolute(&mut self) -> u16 {
@@ -439,11 +454,32 @@ impl<M: Memory> CPU<M> {
             // TXA: X -> A
             0x8A => {
                 self.ac = self.x;
-                self.set_zero_and_negative_flag((self.ac));
+                self.set_zero_and_negative_flag(self.ac);
             }
             // TXS: X -> S
             0x9A => {
                 self.sp = self.x;
+            }
+            // TYA: Y -> A
+            0x98 => {
+                self.ac = self.y;
+                self.set_zero_and_negative_flag(self.ac);
+            }
+            // PHA: A -> Stack
+            0x48 => {
+                self.push_stack(self.ac);
+            }
+            // PHP: S -> Stack
+            0x08 => self.push_stack(self.sr.bits()),
+            // PLA: Stack[SP+1] -> A
+            0x68 => {
+                let val = self.pull_stack();
+                self.ac = val;
+                self.set_zero_and_negative_flag(self.ac);
+            }
+            // PLP: Stack[SP+1] -> SR
+            0x28 => {
+                self.sr = CpuFlags::from_bits_truncate(self.pull_stack());
             }
 
             other => panic!("Invalid opcode: {other}"),
