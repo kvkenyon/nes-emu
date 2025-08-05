@@ -353,7 +353,74 @@ impl<M: Memory> CPU<M> {
                 self.y = value;
                 self.set_zero_and_negative_flag(value);
             }
-
+            // STA - A -> M
+            0x8D => {
+                let address = self.addr_absolute();
+                cycles = 4;
+                self.bus.write(address, self.ac);
+            } // absolute
+            0x9D => {
+                let (address, _) = self.addr_absolute_x();
+                cycles = 5;
+                self.bus.write(address, self.ac);
+            } // absolute-x
+            0x99 => {
+                let (address, _) = self.addr_absolute_y();
+                cycles = 5;
+                self.bus.write(address, self.ac);
+            } // absolute-y
+            0x85 => {
+                let address = self.addr_zero_page();
+                cycles = 3;
+                self.bus.write(address, self.ac);
+            } // zero page
+            0x95 => {
+                let address = self.addr_zero_page_x();
+                cycles = 4;
+                self.bus.write(address, self.ac);
+            } // x-indexed zero page
+            0x81 => {
+                let address = self.addr_zero_page_x_indirect();
+                cycles = 6;
+                self.bus.write(address, self.ac);
+            } // y-indexed zero page
+            0x91 => {
+                let (address, _) = self.addr_zero_page_y_indirect();
+                cycles = 6;
+                self.bus.write(address, self.ac);
+            } // zero page indirect y-indexed
+            // STX: X -> M
+            0x8E => {
+                let address = self.addr_absolute();
+                cycles = 3;
+                self.bus.write(address, self.x);
+            } // absolute
+            0x86 => {
+                let address = self.addr_zero_page();
+                cycles = 2;
+                self.bus.write(address, self.x);
+            } // zero page
+            0x96 => {
+                let address = self.addr_zero_page_y();
+                cycles = 2;
+                self.bus.write(address, self.x);
+            } // y-indexed zero page
+            // STY: Y -> M
+            0x8C => {
+                let address = self.addr_absolute();
+                cycles = 4;
+                self.bus.write(address, self.y);
+            } // absolute
+            0x84 => {
+                let address = self.addr_zero_page();
+                cycles = 3;
+                self.bus.write(address, self.y);
+            } // zero page
+            0x94 => {
+                let address = self.addr_zero_page_x();
+                cycles = 4;
+                self.bus.write(address, self.y);
+            } // x-indexed zero page
             other => panic!("Invalid opcode: {other}"),
         }
 
