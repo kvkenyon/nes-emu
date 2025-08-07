@@ -580,11 +580,32 @@ impl<M: Memory> CPU<M> {
                 self.set_zero_and_negative_flag(new_value);
             } // absolute
             // LSR $nnnn, X
-            0x5E => {} // absolute x
+            0x5E => {
+                let (address, _) = self.addr_absolute_x();
+                let value = self.bus.read(address);
+                let (new_value, carry) = Self::lsr(value);
+                self.bus.write(address, new_value);
+                self.set_flag(CpuFlags::CARRY, carry);
+                self.set_zero_and_negative_flag(new_value);
+            } // absolute x
             // LSR $nn
-            0x46 => {} // zero page
+            0x46 => {
+                let address = self.addr_zero_page();
+                let value = self.bus.read(address);
+                let (new_value, carry) = Self::lsr(value);
+                self.bus.write(address, new_value);
+                self.set_flag(CpuFlags::CARRY, carry);
+                self.set_zero_and_negative_flag(new_value);
+            } // zero page
             // LSR $nn, X
-            0x56 => {} // zero page x indexed
+            0x56 => {
+                let address = self.addr_zero_page_x();
+                let value = self.bus.read(address);
+                let (new_value, carry) = Self::lsr(value);
+                self.bus.write(address, new_value);
+                self.set_flag(CpuFlags::CARRY, carry);
+                self.set_zero_and_negative_flag(new_value);
+            } // zero page x-indexed
             other => panic!("Invalid opcode: {other}"),
         }
 
@@ -1045,7 +1066,7 @@ mod tests {
         // PHP/PLP roundtrip
         let p0 = cpu.get_p();
         let _ = run_one(&mut cpu, &[0x08]); // PHP
-        // overwrite P intentionally, then pull it back
+                                            // overwrite P intentionally, then pull it back
         cpu.set_p(0);
         let _ = run_one(&mut cpu, &[0x28]); // PLP
         assert_eq!(cpu.get_p(), p0);
@@ -1137,6 +1158,43 @@ mod tests {
         cpu.bus.write(0x1234, 0x80);
         let _ = run_one(&mut cpu, &[0x4E, 0x34, 0x12]);
         assert_eq!(cpu.bus.read(0x1234), 0x40);
+        let (n, _v, _b, _d, _i, z, c) = flags(cpu.get_p());
+        assert_eq!(n, false);
+        assert_eq!(z, false);
+        assert_eq!(c, false);
+    }
+    #[test]
+    fn lsr_abs_x() {
+        let mut cpu = setup_cpu();
+        cpu.set_x(0x01);
+        cpu.bus.write(0x1235, 0x80);
+        let _ = run_one(&mut cpu, &[0x5E, 0x34, 0x12]);
+        assert_eq!(cpu.bus.read(0x1235), 0x40);
+        let (n, _v, _b, _d, _i, z, c) = flags(cpu.get_p());
+        assert_eq!(n, false);
+        assert_eq!(z, false);
+        assert_eq!(c, false);
+    }
+
+    #[test]
+    fn lsr_zp() {
+        let mut cpu = setup_cpu();
+        cpu.bus.write(0x0001, 0x80);
+        let _ = run_one(&mut cpu, &[0x46, 0x01]);
+        assert_eq!(cpu.bus.read(0x0001), 0x40);
+        let (n, _v, _b, _d, _i, z, c) = flags(cpu.get_p());
+        assert_eq!(n, false);
+        assert_eq!(z, false);
+        assert_eq!(c, false);
+    }
+
+    #[test]
+    fn lsr_zp_x() {
+        let mut cpu = setup_cpu();
+        cpu.set_x(0x01);
+        cpu.bus.write(0x0000, 0x80);
+        let _ = run_one(&mut cpu, &[0x56, 0x0FF]);
+        assert_eq!(cpu.bus.read(0x0000), 0x40);
         let (n, _v, _b, _d, _i, z, c) = flags(cpu.get_p());
         assert_eq!(n, false);
         assert_eq!(z, false);
